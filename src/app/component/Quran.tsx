@@ -49,7 +49,7 @@ export default function Quran() {
   const [currentSurah, setCurrentSurah] = useState<number>(1);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
   const [verseData, setVerseData] = useState<VerseData | null>(null);
-  const [versePictureUrl, setVersePictureUrl] = useState<string>(""); // New state for image URL
+  const [versePictureUrl, setVersePictureUrl] = useState<string>("");
   const [error, setError] = useState<string>("");
   const [selectedLanguage, setSelectedLanguage] = useState<string>("en");
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -165,6 +165,14 @@ export default function Quran() {
     setSearchQuery("");
   };
 
+  // New function to reset input fields
+  const handleReset = () => {
+    setCurrentSurah(1);
+    setCurrentVerse(1);
+    setSearchQuery("");
+    setSearchResults([]);
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-br from-amber-50 to-amber-100 dark:from-slate-900 dark:to-slate-800 transition-colors duration-500">
       {/* Header */}
@@ -258,6 +266,13 @@ export default function Quran() {
                 <Share2 className="h-4 w-4 mr-2" />
                 Share
               </Button>
+              <Button
+                onClick={handleReset} // Clear button functionality
+                variant="outline"
+                className="border-red-500 text-red-500"
+              >
+                Clear
+              </Button>
             </div>
 
             {/* Error message */}
@@ -292,43 +307,31 @@ export default function Quran() {
             {verseData && (
               <div className="text-center">
                 <h2 className="text-xl font-bold text-amber-800 dark:text-amber-200">
-                  {verseData.surah.name} ({currentVerse})
+                  Surah: {verseData.surah.name} (Verse {currentVerse})
                 </h2>
-                {versePictureUrl && ( // Display the verse image
-                  <Image
-                    src={versePictureUrl}
-                    alt={`Verse image for Surah ${currentSurah}, Verse ${currentVerse}`}
-                    className="mx-auto mb-4 rounded-lg shadow-lg"
-                    width={400} // Set the desired width
-                    height={200} // Set the desired height
-                  />
-                )}
-
-                <p className="text-lg text-right arabic-text">
+                <Image
+                  src={versePictureUrl}
+                  alt={`Verse ${currentVerse} of Surah ${verseData.surah.name}`}
+                  width={600}
+                  height={400}
+                  className="mt-4 rounded-lg shadow-lg"
+                />
+                <p className="mt-4 text-lg text-amber-800 dark:text-amber-200">
                   {verseData.text}
                 </p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="mt-2 text-gray-600 dark:text-gray-400">
                   {verseData.translation}
                 </p>
+                <div className="flex justify-between mt-4">
+                  <Button onClick={previousVerse} disabled={currentVerse === 1}>
+                    <ChevronLeft className="h-5 w-5" />
+                  </Button>
+                  <Button onClick={nextVerse}>
+                    <ChevronRight className="h-5 w-5" />
+                  </Button>
+                </div>
               </div>
             )}
-
-            {/* Navigation buttons */}
-            <div className="flex justify-between mt-4">
-              <Button
-                onClick={previousVerse}
-                disabled={currentVerse === 1}
-                className="text-amber-700 dark:text-amber-300"
-              >
-                <ChevronLeft /> Previous
-              </Button>
-              <Button
-                onClick={nextVerse}
-                className="text-amber-700 dark:text-amber-300"
-              >
-                Next <ChevronRight />
-              </Button>
-            </div>
           </CardContent>
         </Card>
       </main>

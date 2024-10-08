@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -19,19 +20,20 @@ import {
   Sun,
   Share2,
   Search,
+  RefreshCw,
 } from "lucide-react";
 import Image from "next/image";
-import { useState, useEffect } from "react";
+import { useToast } from "@/hooks/use-toast";
 
-// Types for verse data and search result data
 interface VerseData {
-  text: string; // Arabic text
-  translation: string; // English/Urdu translation
+  text: string;
+  translation: string;
   surah: {
     name: string;
     englishName: string;
     englishNameTranslation: string;
     revelationType: string;
+    numberOfAyahs: number;
   };
 }
 
@@ -50,38 +52,34 @@ export default function Quran() {
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
   const [verseData, setVerseData] = useState<VerseData | null>(null);
   const [versePictureUrl, setVersePictureUrl] = useState<string>("");
-  const [error, setError] = useState<string>("");
   const [selectedLanguage, setSelectedLanguage] = useState<string>("en");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState<boolean>(false);
+  const { toast } = useToast();
 
-  // Toggle dark mode in the DOM
   useEffect(() => {
     const root = window.document.documentElement;
     root.classList.toggle("dark", isDarkMode);
   }, [isDarkMode]);
 
-  // Fetch verse data whenever surah, verse, or language changes
   useEffect(() => {
     fetchVerseData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSurah, currentVerse, selectedLanguage]);
 
-  // Function to fetch verse data from the API
   const fetchVerseData = async () => {
-    if (
-      !currentVerse ||
-      isNaN(currentVerse) ||
-      !currentSurah ||
-      isNaN(currentSurah)
-    ) {
-      setError("Please enter valid surah and verse numbers");
+    if (!currentVerse || isNaN(currentVerse) || !currentSurah || isNaN(currentSurah)) {
+      toast({
+        title: "Invalid Input",
+        description: "Please enter valid surah and verse numbers",
+        variant: "destructive",
+      });
       return;
     }
 
     setIsLoading(true);
-    setError("");
 
     try {
       const lang = selectedLanguage === "ur" ? "ur.ahmedali" : "en.asad";
@@ -94,50 +92,50 @@ export default function Quran() {
 
       const result = await response.json();
       setVerseData(result.data);
-
-      // Set the verse picture URL
       setVersePictureUrl(
         `https://cdn.islamic.network/quran/images/${currentSurah}_${currentVerse}.png`
       );
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message || "An unexpected error occurred");
-      } else {
-        setError("An unexpected error occurred");
-      }
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "An unexpected error occurred",
+        variant: "destructive",
+      });
       setVerseData(null);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Handlers for navigating verses
   const nextVerse = () => {
-    setCurrentVerse((prev) => prev + 1);
+    if (verseData && currentVerse < verseData.surah.numberOfAyahs) {
+      setCurrentVerse((prev) => prev + 1);
+    } else {
+      setCurrentSurah((prev) => prev + 1);
+      setCurrentVerse(1);
+    }
   };
 
   const previousVerse = () => {
-    setCurrentVerse((prev) => Math.max(1, prev - 1));
+    if (currentVerse > 1) {
+      setCurrentVerse((prev) => prev - 1);
+    } else if (currentSurah > 1) {
+      setCurrentSurah((prev) => prev - 1);
+      setCurrentVerse(1); // Set to the last verse of the previous surah (this is a simplification)
+    }
   };
 
-  // Toggle dark mode
-  const toggleDarkMode = () => {
-    setIsDarkMode((prev) => !prev);
-  };
+  const toggleDarkMode = () => setIsDarkMode((prev) => !prev);
 
-  // Handle search function
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
 
     setIsSearching(true);
-    setError("");
 
     try {
       const lang = selectedLanguage === "ur" ? "ur.ahmedali" : "en.asad";
       const response = await fetch(
-        `https://api.alquran.cloud/v1/search/${encodeURIComponent(
-          searchQuery
-        )}/${lang}`
+        `https://api.alquran.cloud/v1/search/${encodeURIComponent(searchQuery)}/${lang}`
       );
       if (!response.ok) {
         throw new Error("Search failed. Please try again.");
@@ -145,19 +143,18 @@ export default function Quran() {
 
       const result = await response.json();
       setSearchResults(result.data.matches);
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message || "An unexpected error occurred during search");
-      } else {
-        setError("An unexpected error occurred during search");
-      }
+    } catch (err) {
+      toast({
+        title: "Search Error",
+        description: err instanceof Error ? err.message : "An unexpected error occurred during search",
+        variant: "destructive",
+      });
       setSearchResults([]);
     } finally {
       setIsSearching(false);
     }
   };
 
-  // Handle click on a search result
   const handleSearchResultClick = (surah: number, verse: number) => {
     setCurrentSurah(surah);
     setCurrentVerse(verse);
@@ -165,7 +162,6 @@ export default function Quran() {
     setSearchQuery("");
   };
 
-  // New function to reset input fields
   const handleReset = () => {
     setCurrentSurah(1);
     setCurrentVerse(1);
@@ -173,9 +169,30 @@ export default function Quran() {
     setSearchResults([]);
   };
 
+  const handleShare = async () => {
+    const shareUrl = `${window.location.origin}?surah=${currentSurah}&verse=${currentVerse}&lang=${selectedLanguage}`;
+    
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Quran Verse',
+          text: `Check out this verse from the Quran: Surah ${currentSurah}, Verse ${currentVerse}`,
+          url: shareUrl,
+        });
+      } catch (err) {
+        console.error('Error sharing:', err);
+      }
+    } else {
+      await navigator.clipboard.writeText(shareUrl);
+      toast({
+        title: "Link Copied",
+        description: "The link to this verse has been copied to your clipboard.",
+      });
+    }
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-br from-amber-50 to-amber-100 dark:from-slate-900 dark:to-slate-800 transition-colors duration-500">
-      {/* Header */}
       <header className="sticky top-0 z-10 bg-white dark:bg-slate-900 border-b border-amber-200 dark:border-slate-700 shadow-md">
         <div className="container mx-auto px-4 py-2 flex items-center justify-between">
           <div className="flex items-center space-x-4">
@@ -183,11 +200,12 @@ export default function Quran() {
               variant="ghost"
               size="icon"
               className="text-amber-600 dark:text-amber-400"
+              aria-label="Menu"
             >
               <Menu className="h-6 w-6" />
             </Button>
             <h1 className="text-2xl font-bold flex items-center text-amber-800 dark:text-amber-200">
-              <Book className="mr-2" /> Quran App
+              <Book className="mr-2" aria-hidden="true" /> Quran App
             </h1>
           </div>
           <div className="flex items-center space-x-4">
@@ -199,13 +217,15 @@ export default function Quran() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyPress={(e) => e.key === "Enter" && handleSearch()}
+                aria-label="Search verses"
               />
               <Button
                 variant="ghost"
                 size="icon"
                 className="absolute right-0 top-0 text-amber-600 dark:text-amber-400"
                 onClick={handleSearch}
-                disabled={isSearching} // Disable button when searching
+                disabled={isSearching}
+                aria-label="Search"
               >
                 <Search className="h-4 w-4" />
               </Button>
@@ -215,6 +235,7 @@ export default function Quran() {
               size="icon"
               onClick={toggleDarkMode}
               className="text-amber-600 dark:text-amber-400"
+              aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
             >
               {isDarkMode ? (
                 <Sun className="h-6 w-6" />
@@ -226,18 +247,17 @@ export default function Quran() {
         </div>
       </header>
 
-      {/* Main content */}
       <main className="flex-grow container mx-auto px-4 py-8">
         <Card className="w-full max-w-4xl mx-auto bg-white dark:bg-slate-800 shadow-lg border-amber-200 dark:border-slate-700">
           <CardContent className="p-6 space-y-6">
-            {/* Surah, verse input, and language selection */}
-            <div className="flex justify-between items-center">
+            <div className="flex flex-wrap justify-between items-center gap-4">
               <Input
                 type="number"
                 value={currentSurah}
                 onChange={(e) => setCurrentSurah(Number(e.target.value))}
                 placeholder="Surah"
                 className="w-24"
+                aria-label="Surah number"
               />
               <Input
                 type="number"
@@ -245,6 +265,7 @@ export default function Quran() {
                 onChange={(e) => setCurrentVerse(Number(e.target.value))}
                 placeholder="Verse"
                 className="w-24"
+                aria-label="Verse number"
               />
               <Select
                 value={selectedLanguage}
@@ -259,75 +280,72 @@ export default function Quran() {
                 </SelectContent>
               </Select>
               <Button
-                onClick={handleSearch}
+                onClick={handleShare}
                 variant="outline"
                 className="border-amber-300 dark:border-slate-600 text-amber-700 dark:text-amber-300"
               >
-                <Share2 className="h-4 w-4 mr-2" />
+                <Share2 className="h-4 w-4 mr-2" aria-hidden="true" />
                 Share
               </Button>
               <Button
-                onClick={handleReset} // Clear button functionality
+                onClick={handleReset}
                 variant="outline"
                 className="border-red-500 text-red-500"
               >
-                Clear
+                <RefreshCw className="h-4 w-4 mr-2" aria-hidden="true" />
+                Reset
               </Button>
             </div>
 
-            {/* Error message */}
-            {error && <p className="text-red-500">{error}</p>}
+            {isLoading && (
+              <div className="text-center">
+                <RefreshCw className="h-8 w-8 animate-spin mx-auto text-amber-600 dark:text-amber-400" />
+                <p className="mt-2 text-gray-600 dark:text-gray-400">Loading...</p>
+              </div>
+            )}
 
-            {/* Loading state */}
-            {isLoading && <p className="text-gray-600">Loading...</p>}
-
-            {/* Search results */}
             {searchResults.length > 0 && (
-              <div className="mt-4">
+              <div className="mt-4 max-h-60 overflow-y-auto">
                 {searchResults.map((result) => (
                   <Button
                     key={`${result.surah.number}-${result.numberInSurah}`}
                     variant="link"
-                    className="text-left"
-                    onClick={() =>
-                      handleSearchResultClick(
-                        result.surah.number,
-                        result.numberInSurah
-                      )
-                    }
+                    className="text-left w-full justify-start"
+                    onClick={() => handleSearchResultClick(result.surah.number, result.numberInSurah)}
                   >
-                    {result.text} (Surah {result.surah.englishName}, Verse{" "}
-                    {result.numberInSurah})
+                    {result.text} (Surah {result.surah.englishName}, Verse {result.numberInSurah})
                   </Button>
                 ))}
               </div>
             )}
 
-            {/* Verse display */}
-            {verseData && (
+            {verseData && !isLoading && (
               <div className="text-center">
                 <h2 className="text-xl font-bold text-amber-800 dark:text-amber-200">
                   Surah: {verseData.surah.name} (Verse {currentVerse})
                 </h2>
-                <Image
-                  src={versePictureUrl}
-                  alt={`Verse ${currentVerse} of Surah ${verseData.surah.name}`}
-                  width={600}
-                  height={400}
-                  className="mt-4 rounded-lg shadow-lg"
-                />
-                <p className="mt-4 text-lg text-amber-800 dark:text-amber-200">
+                <div className="relative w-full aspect-[3/2] mt-4">
+                  <Image
+                    src={versePictureUrl}
+                    alt={`Verse ${currentVerse} of Surah ${verseData.surah.name}`}
+                    fill
+                    className="rounded-lg shadow-lg object-contain"
+                  />
+                </div>
+                <p className="mt-4 text-lg text-amber-800 dark:text-amber-200 font-arabic">
                   {verseData.text}
                 </p>
                 <p className="mt-2 text-gray-600 dark:text-gray-400">
                   {verseData.translation}
                 </p>
                 <div className="flex justify-between mt-4">
-                  <Button onClick={previousVerse} disabled={currentVerse === 1}>
-                    <ChevronLeft className="h-5 w-5" />
+                  <Button onClick={previousVerse} disabled={currentSurah === 1 && currentVerse === 1}>
+                    <ChevronLeft className="h-5 w-5 mr-2" aria-hidden="true" />
+                    Previous
                   </Button>
                   <Button onClick={nextVerse}>
-                    <ChevronRight className="h-5 w-5" />
+                    Next
+                    <ChevronRight className="h-5 w-5 ml-2" aria-hidden="true" />
                   </Button>
                 </div>
               </div>

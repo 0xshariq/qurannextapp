@@ -28,7 +28,7 @@ export default function Quran() {
   const [selectedLanguage, setSelectedLanguage] = useState<string>("en");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isImageLarge, setIsImageLarge] = useState<boolean>(false);
-
+  
   useEffect(() => {
     fetchVerseData();
   }, [currentSurah, currentVerse, selectedLanguage]);
